@@ -1,0 +1,41 @@
+# Этап 1: билд-образ (установка зависимостей)
+FROM node:23-slim AS builder
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Копируем файлы package.json и package-lock.json для установки зависимостей
+COPY package*.json ./
+
+# Устанавливаем все зависимости, включая devDependencies
+RUN npm install
+
+# Копируем исходный код приложения
+# .env должен быть внутри проекта, возможно, нужно исключить его через .dockerignore
+COPY .env .  
+COPY server.js .
+
+# Этап 2: финальный образ (только необходимое для запуска приложения)
+FROM node:23-slim AS final
+
+# Устанавливаем рабочую директорию в финальном образе
+WORKDIR /app
+
+# Копируем только продакшн зависимости из билд-образа
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/package*.json /app/
+
+# Копируем переменные среды
+COPY --from=builder /app/.env /app/
+
+# Устанавливаем nodemon в финальном образе
+RUN npm install -g nodemon
+
+# Копируем только серверный код
+COPY --from=builder /app/server.js /app/
+
+# Открываем порт 3000 для доступа к приложению
+EXPOSE 3000
+
+# Команда запуска приложения
+CMD ["nodemon", "server.js"]
